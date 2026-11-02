@@ -263,21 +263,28 @@ st.sidebar.markdown("""
 
 st.sidebar.markdown("---")
 
-# API Key Configuration
-st.sidebar.markdown("##### 🔑 Cloud Engine Credentials")
-sidebar_user_key = st.sidebar.text_input(
-    "Gemini API Key",
-    type="password",
-    help="Enter personal Gemini API key. On Streamlit Cloud, store in App Settings -> Secrets as GEMINI_API_KEY. Leave blank to run calibrated offline mode.",
-    placeholder="AIzaSy... (optional for offline testing)"
-)
+# API Key Configuration & Pre-Flight Secret Detection
+cloud_secret_key = ""
+try:
+    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+        sec = str(st.secrets["GEMINI_API_KEY"]).strip()
+        if len(sec) > 5:
+            cloud_secret_key = sec
+except Exception:
+    pass
+if not cloud_secret_key:
+    env_candidate = os.environ.get("GEMINI_API_KEY", "").strip()
+    if len(env_candidate) > 5:
+        cloud_secret_key = env_candidate
 
-active_key = resolve_active_key(sidebar_user_key)
-
-if active_key:
+if cloud_secret_key:
+    active_key = cloud_secret_key
     st.sidebar.markdown("""
     <div style="margin-bottom: 12px;">
         <span class="status-pill status-pill-ok">● Live Cloud Engine Active</span>
+    </div>
+    <div style="font-size: 11px; color: #94a3b8; line-height: 1.4; margin-bottom: 10px;">
+        ✓ Authenticated via Streamlit Cloud Secrets
     </div>
     """, unsafe_allow_html=True)
     if GENAI_AVAILABLE and genai:
@@ -286,14 +293,35 @@ if active_key:
         except Exception:
             pass
 else:
-    st.sidebar.markdown("""
-    <div style="margin-bottom: 12px;">
-        <span class="status-pill status-pill-warn">● Offline Calibrated Mode</span>
-    </div>
-    <div style="font-size: 11px; color: #64748b; line-height: 1.4; margin-bottom: 8px;">
-        Operating on pre-benchmarked civil heuristics. To enable live multimodal generation, grab a free API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #38bdf8;">Google AI Studio</a>.
-    </div>
-    """, unsafe_allow_html=True)
+    # No secret key in background: show manual input and friendly offline status
+    st.sidebar.markdown("##### 🔑 Cloud Engine Credentials")
+    sidebar_user_key = st.sidebar.text_input(
+        "Gemini API Key",
+        type="password",
+        help="Enter personal Gemini API key. On Streamlit Cloud, store in App Settings -> Secrets as GEMINI_API_KEY. Leave blank to run calibrated offline mode.",
+        placeholder="AIzaSy... (optional for offline testing)"
+    )
+    active_key = resolve_active_key(sidebar_user_key)
+    if active_key:
+        st.sidebar.markdown("""
+        <div style="margin-bottom: 12px;">
+            <span class="status-pill status-pill-ok">● Live Cloud Engine Active</span>
+        </div>
+        """, unsafe_allow_html=True)
+        if GENAI_AVAILABLE and genai:
+            try:
+                genai.configure(api_key=active_key)
+            except Exception:
+                pass
+    else:
+        st.sidebar.markdown("""
+        <div style="margin-bottom: 12px;">
+            <span class="status-pill status-pill-warn">● Offline Calibrated Mode</span>
+        </div>
+        <div style="font-size: 11px; color: #64748b; line-height: 1.4; margin-bottom: 8px;">
+            Operating on pre-benchmarked civil heuristics. To enable live multimodal generation, grab a free API key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #38bdf8;">Google AI Studio</a>.
+        </div>
+        """, unsafe_allow_html=True)
 
 # Model Selection
 active_model_name = st.sidebar.selectbox(
@@ -1104,8 +1132,11 @@ if active_workspace == "📊 Mission Control & Site Telemetry":
     with c_left:
         st.markdown("##### 🛰️ Live Perimeter Spatial Surveillance Feed")
         
-        # Load sample scaffolding image
-        sample_path = os.path.join(os.path.dirname(__file__), "docs", "assets", "scaffold_workers.jpg")
+        # Load sample scaffolding image (checks sample_scaffold.jpg first)
+        sample_path = os.path.join(os.path.dirname(__file__), "sample_scaffold.jpg")
+        if not os.path.exists(sample_path):
+            sample_path = os.path.join(os.path.dirname(__file__), "docs", "assets", "scaffold_workers.jpg")
+            
         if os.path.exists(sample_path):
             cam_img = Image.open(sample_path)
             annotated_cam = draw_safety_annotations(cam_img)
@@ -1192,7 +1223,9 @@ elif active_workspace == "🦺 OSHA 1926 Safety Vision Radar":
 
     loaded_image = None
     if input_mode == "Load Calibrated High-Rise Sample":
-        sample_path = os.path.join(os.path.dirname(__file__), "docs", "assets", "scaffold_workers.jpg")
+        sample_path = os.path.join(os.path.dirname(__file__), "sample_scaffold.jpg")
+        if not os.path.exists(sample_path):
+            sample_path = os.path.join(os.path.dirname(__file__), "docs", "assets", "scaffold_workers.jpg")
         if os.path.exists(sample_path):
             loaded_image = Image.open(sample_path)
     elif input_mode == "Upload Site Photo":
@@ -1205,7 +1238,9 @@ elif active_workspace == "🦺 OSHA 1926 Safety Vision Radar":
             loaded_image = pasted
 
     if loaded_image is None:
-        sample_path = os.path.join(os.path.dirname(__file__), "docs", "assets", "scaffold_workers.jpg")
+        sample_path = os.path.join(os.path.dirname(__file__), "sample_scaffold.jpg")
+        if not os.path.exists(sample_path):
+            sample_path = os.path.join(os.path.dirname(__file__), "docs", "assets", "scaffold_workers.jpg")
         if os.path.exists(sample_path):
             loaded_image = Image.open(sample_path)
 
